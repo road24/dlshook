@@ -12,6 +12,7 @@ add_library(dlshook SHARED
     #${CMAKE_CURRENT_SOURCE_DIR}/src/dlshook.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/card_emulator.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dog_server.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cc
 )
 
 # Set include directories
