@@ -11,6 +11,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32 -fPIC")
 add_library(dlshook SHARED 
     #${CMAKE_CURRENT_SOURCE_DIR}/src/dlshook.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/card_emulator.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dog_server.cc
 )
 
 # Set include directories
