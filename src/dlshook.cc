@@ -217,12 +217,11 @@ extern "C" FILE* fopen(const char *c_path, const char *mode) {
     // check if we have a redirect for this path
     auto it = std::find_if(g_FolderRedirects->begin(), g_FolderRedirects->end(),
                            [&path](const std::pair<std::string, std::string>& pair) {
-                               printf("checking if %s starts with %s\n", path.c_str(), pair.first.c_str());
                                return dlstools::utils::startsWith(path, pair.first);
                            });
 
     if (it != g_FolderRedirects->end()) {
-        printf("redirecting %s to %s\n", path.c_str(), it->second.c_str());
+        // printf("redirecting %s to %s\n", path.c_str(), it->second.c_str());
         // Redirect the path to the new folder
         path = it->second + path.substr(it->first.size());
     }
@@ -252,7 +251,7 @@ extern "C" uint32_t DogConvert(void) {
         *DogResult = gDogServer->Convert(rq, rq_size);
         if (*DogResult == 0xFFFFFFFF) {
             printf("DogConvert () ");
-            for(int i = 0; i < rq_size; i++) {
+            for(size_t i = 0; i < rq_size; i++) {
                 printf("%02x", (unsigned char)rq[i]);
             }
             printf(" -> %08x\n", *DogResult);

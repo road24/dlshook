@@ -44,7 +44,7 @@ bool startsWith(const std::string& str, const std::string& prefix) {
 
 bool getRecursiveDirectoryListing(const std::string& path, std::vector<std::string>& file_list) {
     try {
-        printf("Scanning directory: %s\n", path.c_str());
+        // printf("Scanning directory: %s\n", path.c_str());
         for (const auto& entry : std::filesystem::recursive_directory_iterator(path)) {
             // Check if the entry is a regular file
             if (entry.is_regular_file()) {
@@ -56,7 +56,7 @@ bool getRecursiveDirectoryListing(const std::string& path, std::vector<std::stri
         printf("Error accessing directory: %s\n", e.what());
         return false;
     }
-    printf("Found %zu files in directory: %s\n", file_list.size(), path.c_str());
+    // printf("Found %zu files in directory: %s\n", file_list.size(), path.c_str());
     return true;
 }
 
@@ -77,13 +77,13 @@ std::string getSettingsPath(void) {
 }
 
 std::string getEnvOrDefault(const std::string& envVar, const std::string& defaultValue) {
-    printf("%s(%s, %s)\n", __func__, envVar.c_str(), defaultValue.c_str());
+    // printf("%s(%s, %s)\n", __func__, envVar.c_str(), defaultValue.c_str());
     std::string value(defaultValue);
     const char* envPath = std::getenv(envVar.c_str());
     if (envPath) {
         value = std::string(envPath);
     }
-    printf("Returning value: %s\n", value.c_str());
+    // printf("Returning value: %s\n", value.c_str());
     return value;
 }
 

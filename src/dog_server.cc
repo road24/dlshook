@@ -55,14 +55,6 @@ bool DogServer::Load(const std::string& path) {
     
     // print the total number of entries loaded
     LOG("Loaded %zu entries from %s\n", mTable.size(), path.c_str());
-    // print the first 10 entries
-    int count = 0;
-    for (const auto& entry : mTable) {
-        if (count++ >= 10) {
-            break;
-        }
-        LOG("Key: %s, Value: %08x\n", entry.first.c_str(), entry.second);
-    }
 
     // close the input stream
     in.close();
