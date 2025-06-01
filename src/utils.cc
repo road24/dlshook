@@ -11,9 +11,9 @@ static std::string_view KEYS_PATH_ENV_VAR = "DLS_KEYS_PATH";
 static std::string_view CARD_PATH_ENV_VAR = "CARD_PATH";
 static std::string_view CARD_PATH = "/SAVE/DLS/card.bin";
 static std::string_view SCRIPTS_PATH_ENV_VAR = "SCRIPTS_PATH";
-static std::string_view SCRIPTS_PATH = "SCRIPT";
+static std::string_view SCRIPTS_PATH = "SCRIPT/";
 static std::string_view SETTINGS_PATH_ENV_VAR = "SETTINGS_PATH";
-static std::string_view SETTINGS_PATH = "/SAVE/DLS/settings";
+static std::string_view SETTINGS_PATH = "/SAVE/DLS/";
 
 namespace dlstools {
 namespace utils {
@@ -44,6 +44,7 @@ bool startsWith(const std::string& str, const std::string& prefix) {
 
 bool getRecursiveDirectoryListing(const std::string& path, std::vector<std::string>& file_list) {
     try {
+        printf("Scanning directory: %s\n", path.c_str());
         for (const auto& entry : std::filesystem::recursive_directory_iterator(path)) {
             // Check if the entry is a regular file
             if (entry.is_regular_file()) {
@@ -55,30 +56,35 @@ bool getRecursiveDirectoryListing(const std::string& path, std::vector<std::stri
         printf("Error accessing directory: %s\n", e.what());
         return false;
     }
-
+    printf("Found %zu files in directory: %s\n", file_list.size(), path.c_str());
     return true;
 }
 
 std::string getKeysFilePath(void) {
-    // check if the environment variable is set
-    const char* envPath = std::getenv(KEYS_PATH_ENV_VAR.data());
-    if (envPath) {
-        return std::string(envPath);
-    }
-
-    // if not, use the default path
-    return std::string(KEYS_PATH);
+    return getEnvOrDefault(KEYS_PATH_ENV_VAR.data(), KEYS_PATH.data()  );
 }
 
 std::string getCardFilePath(void) {
-    // check if the environment variable is set
-    const char* envPath = std::getenv(CARD_PATH_ENV_VAR.data());
-    if (envPath) {
-        return std::string(envPath);
-    }
+    return getEnvOrDefault(CARD_PATH_ENV_VAR.data(), CARD_PATH.data());
+}
 
-    // if not, use the default path
-    return std::string(CARD_PATH);
+std::string getScriptsPath(void) {
+    return getEnvOrDefault(SCRIPTS_PATH_ENV_VAR.data(), SCRIPTS_PATH.data());
+}
+
+std::string getSettingsPath(void) {
+    return getEnvOrDefault(SETTINGS_PATH_ENV_VAR.data(), SETTINGS_PATH.data());
+}
+
+std::string getEnvOrDefault(const std::string& envVar, const std::string& defaultValue) {
+    printf("%s(%s, %s)\n", __func__, envVar.c_str(), defaultValue.c_str());
+    std::string value(defaultValue);
+    const char* envPath = std::getenv(envVar.c_str());
+    if (envPath) {
+        value = std::string(envPath);
+    }
+    printf("Returning value: %s\n", value.c_str());
+    return value;
 }
 
 } // namespace utils

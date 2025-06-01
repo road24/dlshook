@@ -16,6 +16,7 @@ std::string getKeysFilePath(void);
 std::string getCardFilePath(void);
 std::string getScriptsPath(void);
 std::string getSettingsPath(void);
+std::string getEnvOrDefault(const std::string& envVar, const std::string& defaultValue);
 
 } // namespace utils
 } // namespace dlstools

@@ -30,7 +30,7 @@ static dlstools::CardEmulator *gCardEmulator = nullptr;
 static dlstools::DogServer *gDogServer = nullptr;
 
 std::unordered_map<std::string,std::string> g_CaseInsensitiveFSMap;
-std::unordered_map<std::string,std::string> g_FolderRedirects;
+std::unordered_map<std::string,std::string> *g_FolderRedirects = nullptr;
 
 // function pointers for the real functions
 static FILE* (*real_fopen)(const char*, const char*) = nullptr;
@@ -215,18 +215,20 @@ extern "C" FILE* fopen(const char *c_path, const char *mode) {
     }
     
     // check if we have a redirect for this path
-    auto it = std::find_if(g_FolderRedirects.begin(), g_FolderRedirects.end(),
+    auto it = std::find_if(g_FolderRedirects->begin(), g_FolderRedirects->end(),
                            [&path](const std::pair<std::string, std::string>& pair) {
+                               printf("checking if %s starts with %s\n", path.c_str(), pair.first.c_str());
                                return dlstools::utils::startsWith(path, pair.first);
                            });
 
-    if (it != g_FolderRedirects.end()) {
+    if (it != g_FolderRedirects->end()) {
+        printf("redirecting %s to %s\n", path.c_str(), it->second.c_str());
         // Redirect the path to the new folder
         path = it->second + path.substr(it->first.size());
     }
 
     // if open failed, try finding the file in the filesystem map
-    if (real_fopen(path.c_str(), mode) == NULL) {
+    if ((result = real_fopen(path.c_str(), mode)) == NULL) {
         std::string upperCasePath = dlstools::utils::toUpper(path);
         if (g_CaseInsensitiveFSMap.count(upperCasePath)) {
             result = real_fopen(g_CaseInsensitiveFSMap[upperCasePath].c_str(), mode);
@@ -295,7 +297,11 @@ void __attribute__((constructor)) initialize(void) {
     detour_function((void *)&DogConvert, DogConvertAddress);
 
     // Setup the directory redirects
-    g_FolderRedirects["/SETTINGS/"] = dlstools::utils::getSettingsPath();
-    g_FolderRedirects["/SCRIPT/"] = dlstools::utils::getScriptsPath();
+    // ugly hack, static objects might be initialized after this constructor
+    // so we force the initialization of the map here
+    g_FolderRedirects = new std::unordered_map<std::string,std::string>();
+    g_FolderRedirects->insert(std::pair("/SETTINGS/",dlstools::utils::getSettingsPath()));
+    g_FolderRedirects->insert(std::pair("/SCRIPT/",dlstools::utils::getScriptsPath()));
+
 }
 
