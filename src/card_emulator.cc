@@ -11,7 +11,7 @@
 #define LOG(fmt, ...)
 #endif
 
-namespace dlshook {
+namespace dlstools {
 
 enum class card_emulator_cmd {
     CMD_READ_CARD_METADATA = 0x53,
@@ -29,8 +29,9 @@ CardEmulator::~CardEmulator() {
     }
 }
 
-bool CardEmulator::init() {
-    if (!load(mCardFilePath)) {
+bool CardEmulator::init(const std::string& path) {
+    
+    if (!load(path)) {
         LOG("Failed to open card file, creating a new one\n");
         // Setup the sectors
         std::memset(mSectors, 0x00, sizeof(mSectors));
@@ -39,11 +40,12 @@ bool CardEmulator::init() {
         mSectors[1][3] = 0xFF; // sector 1, offset 6 : this is checked by the game to be non 0
 
         // then write the card to the file
-        if (save(mCardFilePath) != 0) {
+        if (save(path) != 0) {
             LOG("Failed to write card file\n");
             return false;
         }
     }
+    mCardFilePath = path;
     mIsInitialized = true;
     return true;
 }

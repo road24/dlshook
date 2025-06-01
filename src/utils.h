@@ -14,6 +14,8 @@ bool startsWith(const std::string& str, const std::string& prefix);
 bool getRecursiveDirectoryListing(const std::string& path, std::vector<std::string>& file_list);
 std::string getKeysFilePath(void);
 std::string getCardFilePath(void);
+std::string getScriptsPath(void);
+std::string getSettingsPath(void);
 
 } // namespace utils
 } // namespace dlstools

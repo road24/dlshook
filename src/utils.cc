@@ -10,6 +10,10 @@ static std::string_view KEYS_PATH = "dls.keys";
 static std::string_view KEYS_PATH_ENV_VAR = "DLS_KEYS_PATH";
 static std::string_view CARD_PATH_ENV_VAR = "CARD_PATH";
 static std::string_view CARD_PATH = "/SAVE/DLS/card.bin";
+static std::string_view SCRIPTS_PATH_ENV_VAR = "SCRIPTS_PATH";
+static std::string_view SCRIPTS_PATH = "SCRIPT";
+static std::string_view SETTINGS_PATH_ENV_VAR = "SETTINGS_PATH";
+static std::string_view SETTINGS_PATH = "/SAVE/DLS/settings";
 
 namespace dlstools {
 namespace utils {
