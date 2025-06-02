@@ -182,6 +182,11 @@ extern "C" int write(int fd, const void *buf, size_t count) {
     if (fd == CARD_EMULATOR_FD) {
         if (gCardEmulator) {
             result = gCardEmulator->tx((void*)buf, count);
+            printf("write(%d, %p, %zu) -> %d : ", fd, buf, count, result);
+            for(int i = 0; i < result; i++) {
+                printf("%02x ", ((uint8_t*)buf)[i]);
+            }
+            printf("\n");
         }
     } else {
         result = real_write(fd, buf, count);
@@ -199,6 +204,11 @@ extern "C" int read(int fd, void *buf, size_t count) {
     if (fd == CARD_EMULATOR_FD) {
         if (gCardEmulator) {
             result = gCardEmulator->rx(buf, count);
+            printf("read(%d, %p, %zu) -> %d : ", fd, buf, count, result);
+            for(int i = 0; i < result; i++) {
+                printf("%02x ", ((uint8_t*)buf)[i]);
+            }
+            printf("\n");
         }
     } else {
         result = real_read(fd, buf, count);

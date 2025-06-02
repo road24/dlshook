@@ -3,10 +3,12 @@
 #include <algorithm>
 #include <queue>
 #include <cstdint>
+#include <fstream>
+#include <vector>
 
 #ifdef DEBUG
 #include <cstdio>
-#define LOG(fmt, ...) printf(fmt, __VA_ARGS__)
+#define LOG(fmt, ...) printf(fmt __VA_OPT__(,) __VA_ARGS__)
 #else
 #define LOG(fmt, ...)
 #endif
@@ -20,7 +22,15 @@ enum class card_emulator_cmd {
 };
 
 
-CardEmulator::CardEmulator() : mCardFilePath(""), mId(0), mIsInitialized(false) {
+CardEmulator::CardEmulator() : mCardFilePath(""), mId(0x01), mIsInitialized(false) {
+    // Setup the sectors
+    std::memset(mSectors, 0x00, sizeof(mSectors));
+    // setup special sectors
+    mSectors[1][4] = 0x07; // sector 1, offset 5 : this is checked by the game to be 0x07
+    mSectors[1][3] = 0xFF; // sector 1, offset 6 : this is checked by the game to be non 0
+    // Initialize the parser state
+    mParserState = parser_state::WAITING_FOR_START;
+
 }
 
 CardEmulator::~CardEmulator() {
@@ -33,9 +43,8 @@ bool CardEmulator::init(const std::string& path) {
     
     if (!load(path)) {
         LOG("Failed to open card file, creating a new one\n");
-        // Setup the sectors
+
         std::memset(mSectors, 0x00, sizeof(mSectors));
-        // setup special sectors
         mSectors[1][4] = 0x07; // sector 1, offset 5 : this is checked by the game to be 0x07
         mSectors[1][3] = 0xFF; // sector 1, offset 6 : this is checked by the game to be non 0
 
@@ -52,19 +61,21 @@ bool CardEmulator::init(const std::string& path) {
 
 int CardEmulator::tx(void *buf, size_t count) {
     uint8_t *data  = (uint8_t*)buf;
-
+    
     for(size_t i=0; i<count; i++) {
         mTxQueue.push(data[i]);
     }
 
     // hacky, run the state machine here so we don't care for working with threads
     // this is not the best way to do it, but it works for now
+    // additionlly, in a future this should help to decouple the reader and a server
+    // to enable customization of the card, emulating the card ejection and stuff like that
+    // TODO(ROAD24): run this in a separate thread as a server
     stateMachine();
     return count;
 }
 
 int CardEmulator::rx(void *buf, size_t count) {
-    int processed = 0;
     int bytesToRead = std::min(count, mRxQueue.size());
 
     uint8_t *data = (uint8_t*)buf;
@@ -72,47 +83,64 @@ int CardEmulator::rx(void *buf, size_t count) {
         data[i] = mRxQueue.front();
         mRxQueue.pop();
     }
-    return processed;
+    return bytesToRead;
 }
 
 bool CardEmulator::save(const std::string& path) {
-    FILE *file = fopen(path.c_str(), "wb");
-    if (file == NULL) {
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file) {
         LOG("Failed to open card file for writing\n");
         return false;
     }
 
-    // Write the metadata
-    fwrite(&mId, sizeof(uint8_t), CARD_SECTOR_SIZE, file);
-
-    // Write the sectors
-    for (int i = 0; i < CARD_SECTORS; i++) {
-        fwrite(mSectors[i], sizeof(uint8_t), CARD_SECTOR_SIZE, file);
+    // Write mId safely as uint32_t
+    file.write(reinterpret_cast<const char*>(&mId), sizeof(uint32_t));
+    if (!file) {
+        LOG("Error writing card ID\n");
+        return false;
     }
 
-    fclose(file);
+    // Write sectors safely
+    for (const auto& sector : mSectors) {
+        file.write(reinterpret_cast<const char*>(sector), CARD_SECTOR_SIZE);
+        if (!file) {
+            LOG("Error writing sector data\n");
+            return false;
+        }
+    }
+
     return true;
 }
 
 bool CardEmulator::load(const std::string& path) {
     LOG("CardEmulator::load(%s)\n", path.c_str());
 
-    FILE *file = fopen(path.c_str(), "rb");
-
-    if (file == NULL) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
         LOG("Failed to open card file for reading\n");
         return false;
     }
 
-    // Read the id
-    fread(&mId, sizeof(uint8_t), CARD_SECTOR_SIZE, file);
-
-    // Read the sectors
-    for (int i = 0; i < CARD_SECTORS; i++) {
-        fread(mSectors[i], sizeof(uint8_t), CARD_SECTOR_SIZE, file);
+    // Read mId safely as a uint32_t
+    uint32_t id = 0;
+    file.read(reinterpret_cast<char*>(&id), sizeof(uint32_t));
+    
+    // Ensure sectors array size is correct before reading
+    if (!file) {
+        LOG("Failed to read card ID\n");
+        return false;
     }
-
-    fclose(file);
+    
+    mId = id;
+    // Read the sectors safely
+    for (auto& sector : mSectors) {
+        file.read(reinterpret_cast<char*>(sector), CARD_SECTOR_SIZE);
+        if (!file) {
+            LOG("Error reading sector data\n");
+            return false;
+        }
+    }
+  
     return true;
 }
 
@@ -168,76 +196,84 @@ void CardEmulator::stateMachineReset() {
 void CardEmulator::stateMachine() {
     static constexpr uint8_t START_BYTE = 0x02;
     static constexpr uint8_t END_BYTE = 0x03;
-    static uint8_t checksum = 0;
     static std::vector<uint8_t> dataBuffer;
-    static uint8_t dataLen = 0;
+    static uint8_t receivedBytes = 0;
+    static uint8_t packetLength = 0;
     static uint8_t command = 0;
     static uint8_t arg = 0;
 
-    while (!mRxQueue.empty()) {
-        uint8_t byte = mRxQueue.front();
-        mRxQueue.pop();
+    while (!mTxQueue.empty()) {
+        uint8_t byte = mTxQueue.front();
+        mTxQueue.pop();
 
         switch (mParserState) {
             case parser_state::WAITING_FOR_START:
-                if (byte == 0x02) {
+                
+                if (byte == START_BYTE) {
+                    receivedBytes = 1;
+                    packetLength = 0;
                     mParserState = parser_state::WAITING_FOR_LENGTH;
                 }
                 break;
 
             case parser_state::WAITING_FOR_LENGTH:
-                if (byte < 2 || byte > 255) {
+                // We should have at least 6 bytes: start byte, length byte, command byte, subcommand byte, data bytes, checksum byte, end byte
+                if (byte < 4) {
                     LOG("Invalid length byte: %02x\n", byte);
                     stateMachineReset();
                     break;
                 }
-                dataLen = byte;
+                packetLength = byte + 2; // +2 because we included the start an length byte itself
+                receivedBytes++;
                 dataBuffer.clear();
-                dataBuffer.reserve(dataLen);
-                checksum = 0;
                 mParserState = parser_state::WAITING_FOR_CMD;
                 break;
 
             case parser_state::WAITING_FOR_CMD:
                 command = byte;
-                dataLen--;
-                checksum += byte;
+                receivedBytes++;
                 mParserState = parser_state::WAITING_FOR_SUBCMD;
                 break;
 
             case parser_state::WAITING_FOR_SUBCMD:
                 arg = byte;
-                dataLen--;
-                checksum += byte;
-                mParserState = parser_state::WAITING_FOR_DATA;
+                receivedBytes++;
+                
+                if ((receivedBytes+2) < packetLength) {
+                    // We expect more data, so we move to data state
+                    mParserState = parser_state::WAITING_FOR_DATA;
+                } else {
+                    // No data expected, move to checksum state
+                    mParserState = parser_state::WAITING_FOR_CHECKSUM;
+                }
                 break;
 
             case parser_state::WAITING_FOR_DATA:
-                if (dataLen > 0) {
-                    dataBuffer.push_back(byte);
-                    checksum += byte;
-                    dataLen--;
-                } else {
+                receivedBytes++;
+                dataBuffer.push_back(byte);
+                if ((receivedBytes+2) >= packetLength) {
                     // No more data expected, move to checksum state
                     mParserState = parser_state::WAITING_FOR_CHECKSUM;
                 }
                 break;
 
             case parser_state::WAITING_FOR_CHECKSUM:
-                if (byte != checksum) {
-                    LOG("Checksum mismatch: expected %02x, got %02x\n", checksum, byte);
-                    stateMachineReset();
-                    break;
-                }
+                // game sends a 0xFF byte, but It doesn't care about it
+                // and I'm assuming it is the checksum byte since that's the standard for many serial protocols
+                // so we just ignore it
                 mParserState = parser_state::WAITING_FOR_END;
                 break;
 
             case parser_state::WAITING_FOR_END:
-                if (byte == 0x03) {
+                if (byte == END_BYTE) {
                     // Command complete, process it
                     processCommand(command, arg, dataBuffer);
                 }
 
+                stateMachineReset();
+                break;
+            default:
+                LOG("Unknown parser state: %d\n", static_cast<int>(mParserState));
                 stateMachineReset();
                 break;
         }
@@ -256,7 +292,7 @@ void CardEmulator::processCommand(uint8_t command, uint8_t arg, const std::vecto
             onWriteSector(data, arg);
             break;
         default:
-            LOG("Unknown command: %02x %02x\n", cmd, arg);
+            LOG("Unknown command: %02x %02x\n", command, arg);
             break;
     }
 }
