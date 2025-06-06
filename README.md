@@ -44,3 +44,6 @@ dlshook has implemented a simple card reader emulation to enable you playing all
 * Card Swap/removal, as for the moment game will think you always have the same card connected.
 * Non NVIDIA cards fix, you need to use a patched version of the game with this fix.
 * IO emulation, there're already public hooks for this so I just saved some effort.
+
+# Special Thanks
+I would like to express my special thanks to *piuitemsmx* for his big effort in testing and catching bugs promptly, delivering this hook in such a short amount of time wouldn't be possible without him.
